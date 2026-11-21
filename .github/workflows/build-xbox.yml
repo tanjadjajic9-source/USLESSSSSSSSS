@@ -114,6 +114,20 @@ jobs:
       - name: Restore DirectML & CppWinRT NuGet Packages
         run: nuget restore xbox-uwp\XboxOTFM.sln -PackagesDirectory xbox-uwp\packages
 
+      - name: Pack DirectML helper inside the app
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem -Path "xbox-uwp\packages" -Recurse -Filter DirectML.dll | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
+          if (-not $dll) { throw "DirectML.dll x64 not found" }
+          Copy-Item $dll.FullName -Destination "xbox-uwp\DirectML.dll" -Force
+          $p = "xbox-uwp\App.vcxproj"
+          $x = Get-Content $p -Raw
+          if ($x -notmatch 'Include="DirectML.dll"') {
+            $x = $x -replace '(<Image Include="Assets\\StoreLogo.png">)', '<None Include="DirectML.dll"><DeploymentContent>true</DeploymentContent></None>$1'
+            Set-Content $p $x
+          }
+          if ((Get-Content $p -Raw) -notmatch 'Include="DirectML.dll"') { throw "Could not add DirectML.dll to project" }
+
       - name: Build & Package Signed MSIX (Release|x64)
         shell: pwsh
         run: |
