@@ -46,6 +46,8 @@ jobs:
           Fix "xbox-uwp\src\Shaders\FMCompute.hlsl" 'RWStructuredBuffer<float>\s+gOutC\s*:' 'RWStructuredBuffer<float> gOutBufC :'
           Fix "xbox-uwp\src\Shaders\FMCompute.hlsl" 'gOutC\[' 'gOutBufC['
           Fix "xbox-uwp\src\Trainer.cpp" 'lock_guard<std::mutex>(\s+)brainLock' 'lock_guard<std::recursive_mutex>$1brainLock'
+          $fb = "xbox-uwp\src\FMBrain.cpp"
+          if ((Get-Content $fb -Raw) -notmatch 'winrt/Windows.Storage.h') { Fix $fb '(#include <winrt/Windows.ApplicationModel.h>)' "`$1`n#include <winrt/Windows.Storage.h>" }
           $p = "xbox-uwp\App.vcxproj"
           Fix $p '<WindowsTargetPlatformVersion>[^<]*<' '<WindowsTargetPlatformVersion>10.0.26100.0<'
           if ((Get-Content $p -Raw) -notmatch 'NOMINMAX') { Fix $p 'WINAPI_FAMILY=WINAPI_FAMILY_APP;%' 'WINAPI_FAMILY=WINAPI_FAMILY_APP;NOMINMAX;%' }
