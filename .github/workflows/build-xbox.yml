@@ -94,6 +94,9 @@ jobs:
           $entries = @("CSEncodeSineOperators", "CSConvForward", "CSAddResidual", "CSMSELossGrad", "CSConvBackwardInput", "CSSiLUBackward", "CSConvBackwardWeights", "CSAdamUpdate")
           foreach ($entry in $entries) {
             & $fxc /nologo /T cs_5_1 /E $entry /Fo "xbox-uwp\Shaders\$entry.cso" "xbox-uwp\src\Shaders\FMCompute.hlsl"
+            if ($LASTEXITCODE -ne 0) { throw "Graphics program $entry failed to compile" }
+            if (-not (Test-Path "xbox-uwp\Shaders\$entry.cso")) { throw "Graphics program $entry is missing" }
+            Write-Host "Compiled $entry.cso"
           }
 
       - name: Create Self-Signed Test Certificate for Xbox Dev Mode
@@ -128,6 +131,26 @@ jobs:
           }
           if ((Get-Content $p -Raw) -notmatch 'Include="DirectML.dll"') { throw "Could not add DirectML.dll to project" }
 
+      - name: Pack GPU graphics programs inside the app
+        shell: pwsh
+        run: |
+          $p = "xbox-uwp\App.vcxproj"
+          $x = Get-Content $p -Raw
+          $items = ""
+          foreach ($cso in Get-ChildItem "xbox-uwp\Shaders" -Filter *.cso) {
+            $rel = "Shaders\" + $cso.Name
+            if ($x -notmatch [regex]::Escape("Include=`"$rel`"")) {
+              $items += "<None Include=`"$rel`"><DeploymentContent>true</DeploymentContent></None>"
+            }
+          }
+          if ($items -ne "") {
+            $x = $x.Replace('<Image Include="Assets\StoreLogo.png">', $items + '<Image Include="Assets\StoreLogo.png">')
+            Set-Content $p $x
+          }
+          $count = ([regex]::Matches((Get-Content $p -Raw), 'Include="Shaders\\[^"]+\.cso"')).Count
+          if ($count -lt 8) { throw "Only $count of 8 graphics programs were added to the app" }
+          Write-Host "Added $count graphics programs to the app"
+
       - name: Build & Package Signed MSIX (Release|x64)
         shell: pwsh
         run: |
@@ -156,6 +179,20 @@ jobs:
           foreach ($d in $deps) {
             Copy-Item $d.FullName -Destination "dist-xbox\" -Force
           }
+
+      - name: Check the app really contains its helpers
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $pkg = Get-ChildItem "dist-xbox" -Filter *.msix | Select-Object -First 1
+          if (-not $pkg) { throw "No .msix app was produced" }
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($pkg.FullName)
+          $names = $zip.Entries | ForEach-Object { $_.FullName }
+          $zip.Dispose()
+          if (-not ($names -contains "DirectML.dll")) { throw "DirectML.dll is not inside the app" }
+          $csoCount = ($names | Where-Object { $_ -match '^Shaders/.+\.cso$' }).Count
+          if ($csoCount -lt 8) { throw "Only $csoCount of 8 graphics programs are inside the app" }
+          Write-Host "OK: DirectML.dll and $csoCount graphics programs are inside $($pkg.Name)"
 
       - name: Upload Xbox MSIX Bundle Artifact
         uses: actions/upload-artifact@v4
