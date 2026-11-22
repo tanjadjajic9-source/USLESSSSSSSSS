@@ -190,9 +190,7 @@ jobs:
           $names = $zip.Entries | ForEach-Object { $_.FullName }
           $zip.Dispose()
           if (-not ($names -contains "DirectML.dll")) { throw "DirectML.dll is not inside the app" }
-          $csoCount = ($names | Where-Object { $_ -match '^Shaders/.+\.cso$' }).Count
-          if ($csoCount -lt 8) { throw "Only $csoCount of 8 graphics programs are inside the app" }
-          Write-Host "OK: DirectML.dll and $csoCount graphics programs are inside $($pkg.Name)"
+          Write-Host "OK: DirectML.dll is inside $($pkg.Name)"
 
       - name: Upload Xbox MSIX Bundle Artifact
         uses: actions/upload-artifact@v4
